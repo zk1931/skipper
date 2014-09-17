@@ -1,4 +1,4 @@
 /**
  * An embedded distributed library.
  */
-package org.apache.skipper;
+package com.github.zk1931.skipper;
