@@ -18,17 +18,16 @@
 
 package com.github.zk1931.skipper;
 
-/**
- * Exceptions for Skipper.
- */
-public abstract class SkipperException extends Exception {
-  /**
-   * The type information is incorrect.
-   */
-  public static class WrongTypeException extends SkipperException {}
+import java.io.Serializable;
+import java.util.concurrent.ConcurrentHashMap;
 
-  /**
-   * The type of map is wrong.
-   */
-  public static class WrongTypeMap extends SkipperException {}
+/**
+ * SkipperHashMap.
+ */
+public class SkipperHashMap<K extends Serializable, V extends Serializable>
+  extends SkipperMap<K, V> {
+
+  SkipperHashMap(String name, CommandPool pool, Class<K> kt, Class<V> vt) {
+    super(name, pool, kt, vt, new ConcurrentHashMap<K, V>());
+  }
 }

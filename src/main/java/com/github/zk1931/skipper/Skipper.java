@@ -102,18 +102,19 @@ public class Skipper {
   }
 
   /**
-   * Gets a SkipperMap object for a given name. It will create a new SkipperMap
-   * object if it doesn't exist, otherwise return the existing one.
+   * Gets a SkipperHashMap object for a given name. It will create a new
+   * SkipperHashMap object if it doesn't exist, otherwise return the existing
+   * one.
    *
    * @param name the name of the SkipperMap object.
-   * @return the SkipperMap object.
+   * @return the SkipperHashMap object.
    * @throws InterruptedException in case of interruption.
    * @throws SkipperException exception from Skipper.
    */
-  public <K extends Serializable, V extends Serializable> SkipperMap<K, V>
-  getMap(String name, Class<K> kt, Class<V> vt)
+  public <K extends Serializable, V extends Serializable> SkipperHashMap<K, V>
+  getHashMap(String name, Class<K> kt, Class<V> vt)
       throws InterruptedException, SkipperException {
-    return skipperCtx.getMap(name, kt, vt);
+    return skipperCtx.getHashMap(name, kt, vt);
   }
 
   /**

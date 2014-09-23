@@ -55,22 +55,25 @@ class SkipperContext extends SkipperModule {
     return message;
   }
 
-  public <K extends Serializable, V extends Serializable> SkipperMap<K, V>
-  getMap(String name, Class<K> kt, Class<V> vt)
+  public <K extends Serializable, V extends Serializable> SkipperHashMap<K, V>
+  getHashMap(String name, Class<K> kt, Class<V> vt)
       throws InterruptedException, SkipperException {
     SkipperMap<K, V> map = maps.get(name);
     if (map == null) {
       CreateMapCommand<K, V> cmd =
         new CreateMapCommand<>(this.serverId, name, kt, vt);
       SkipperFuture ft = this.commandsPool.enqueueCommand(cmd);
-      return (SkipperMap<K, V>)ft.get();
+      return (SkipperHashMap<K, V>)ft.get();
     } else {
       if (map.keyType != kt || map.valueType != vt) {
         LOG.error("The newly created SkipperMap has the wrong type with the"
             + " existing one.");
         throw new SkipperException.WrongTypeException();
       }
-      return map;
+      if (!(map instanceof SkipperHashMap)) {
+        throw new SkipperException.WrongTypeMap();
+      }
+      return (SkipperHashMap<K, V>)map;
     }
   }
 
@@ -107,7 +110,7 @@ class SkipperContext extends SkipperModule {
       SkipperMap map = ctx.maps.get(name);
       if (map == null) {
         // There's no SkipperMap for this name, creating it.
-        map = new SkipperMap(name, module.commandsPool, kt, vt);
+        map = new SkipperHashMap(name, module.commandsPool, kt, vt);
         // Actuall the execute is called in single thread and this is the only
         // place we do update, so we don't need to call putIfAbsent. Here we
         // call it just to bypass findbug plugin warnings.
