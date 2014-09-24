@@ -77,6 +77,25 @@ class SkipperContext extends SkipperModule {
     }
   }
 
+  public <E extends Serializable> SkipperQueue<E>
+  getQueue(String name, Class<E> et)
+      throws InterruptedException, SkipperException {
+    SkipperQueue<E> queue = queues.get(name);
+    if (queue == null) {
+      CreateQueueCommand<E> cmd =
+        new CreateQueueCommand<>(this.serverId, name, et);
+      SkipperFuture ft = this.commandsPool.enqueueCommand(cmd);
+      return (SkipperQueue<E>)ft.get();
+    } else {
+      if (queue.elemType != et) {
+        LOG.error("The newly created SkipperQueue has the wrong type with the"
+            + " existing one.");
+        throw new SkipperException.WrongTypeException();
+      }
+      return queue;
+    }
+  }
+
   /**
    * The base class of all the commands of SkipperContext.
    */
@@ -126,6 +145,37 @@ class SkipperContext extends SkipperModule {
         }
       }
       return map;
+    }
+  }
+
+  static class CreateQueueCommand<E> extends KeeperCommand {
+    private static final long serialVersionUID = 0L;
+    private final Class<E> et;
+    private String name;
+
+    CreateQueueCommand(String source, String name, Class<E> et) {
+      super(source);
+      this.name = name;
+      this.et = et;
+    }
+
+    @Override
+    Object execute(SkipperModule module) throws SkipperException {
+      LOG.debug("Create queue with element type : {}", et);
+      SkipperContext ctx = (SkipperContext)module;
+      SkipperQueue queue = ctx.queues.get(name);
+      if (queue == null) {
+        queue = new SkipperQueue(name, module.commandsPool, et);
+        ctx.queues.putIfAbsent(name, queue);
+        return ctx.queues.get(name);
+      } else {
+        if (queue.elemType != et) {
+          LOG.error("The newly created SkipperQueue has the wrong type with the"
+              + " existing one.");
+          throw new SkipperException.WrongTypeException();
+        }
+      }
+      return queue;
     }
   }
 }

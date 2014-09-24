@@ -124,7 +124,11 @@ public class Skipper {
    * @param name the name of the SkipperQueue object.
    * @return the SkipperQueue object.
    */
-  public SkipperQueue getQueue(String name) { return null; }
+  public <E extends Serializable> SkipperQueue<E>
+  getQueue(String name, Class<E> et)
+      throws InterruptedException, SkipperException {
+    return skipperCtx.getQueue(name, et);
+  }
 
   /**
    * StateMachine of Skipper.
@@ -146,6 +150,8 @@ public class Skipper {
         return skipperCtx.maps.get(cmd.getSource());
       } else if (cmd instanceof SkipperContext.KeeperCommand) {
         return skipperCtx;
+      } else if (cmd instanceof SkipperQueue.QueueCommand) {
+        return skipperCtx.queues.get(cmd.getSource());
       }
       return null;
     }
