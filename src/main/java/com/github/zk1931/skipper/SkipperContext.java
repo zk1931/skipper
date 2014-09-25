@@ -40,14 +40,11 @@ class SkipperContext extends SkipperModule {
   final ConcurrentHashMap<String, SkipperQueue> queues =
     new ConcurrentHashMap<String, SkipperQueue>();
 
-  private String serverId;
-
   private static final Logger LOG =
       LoggerFactory.getLogger(SkipperContext.class);
 
-  SkipperContext(CommandPool pool, String serverId) {
-    super(pool);
-    this.serverId = serverId;
+  SkipperContext(CommandPool pool, String name, String serverId) {
+    super(pool, name, serverId);
   }
 
   @Override
@@ -61,7 +58,7 @@ class SkipperContext extends SkipperModule {
     SkipperMap<K, V> map = maps.get(name);
     if (map == null) {
       CreateMapCommand<K, V> cmd =
-        new CreateMapCommand<>(this.serverId, name, kt, vt);
+        new CreateMapCommand<>(this.name, name, kt, vt);
       SkipperFuture ft = this.commandsPool.enqueueCommand(cmd);
       return (SkipperHashMap<K, V>)ft.get();
     } else {
@@ -83,7 +80,7 @@ class SkipperContext extends SkipperModule {
     SkipperQueue<E> queue = queues.get(name);
     if (queue == null) {
       CreateQueueCommand<E> cmd =
-        new CreateQueueCommand<>(this.serverId, name, et);
+        new CreateQueueCommand<>(this.name, name, et);
       SkipperFuture ft = this.commandsPool.enqueueCommand(cmd);
       return (SkipperQueue<E>)ft.get();
     } else {
@@ -123,13 +120,15 @@ class SkipperContext extends SkipperModule {
     }
 
     @Override
-    Object execute(SkipperModule module) throws SkipperException {
+    Object execute(SkipperModule module, String clientId)
+        throws SkipperException {
       LOG.debug("Create map with key type : {}, value type :  {}", kt, vt);
       SkipperContext ctx = (SkipperContext)module;
       SkipperMap map = ctx.maps.get(name);
       if (map == null) {
         // There's no SkipperMap for this name, creating it.
-        map = new SkipperHashMap(name, module.commandsPool, kt, vt);
+        map = new SkipperHashMap(module.commandsPool, name, module.serverId,
+                                 kt, vt);
         // Actuall the execute is called in single thread and this is the only
         // place we do update, so we don't need to call putIfAbsent. Here we
         // call it just to bypass findbug plugin warnings.
@@ -160,12 +159,14 @@ class SkipperContext extends SkipperModule {
     }
 
     @Override
-    Object execute(SkipperModule module) throws SkipperException {
+    Object execute(SkipperModule module, String serverId)
+        throws SkipperException {
       LOG.debug("Create queue with element type : {}", et);
       SkipperContext ctx = (SkipperContext)module;
       SkipperQueue queue = ctx.queues.get(name);
       if (queue == null) {
-        queue = new SkipperQueue(name, module.commandsPool, et);
+        queue = new SkipperQueue(module.commandsPool, name, module.serverId,
+                                 et);
         ctx.queues.putIfAbsent(name, queue);
         return ctx.queues.get(name);
       } else {

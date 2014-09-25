@@ -27,7 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SkipperHashMap<K extends Serializable, V extends Serializable>
   extends SkipperMap<K, V> {
 
-  SkipperHashMap(String name, CommandPool pool, Class<K> kt, Class<V> vt) {
-    super(name, pool, kt, vt, new ConcurrentHashMap<K, V>());
+  SkipperHashMap(CommandPool pool, String serverId, String name, Class<K> kt,
+                 Class<V> vt) {
+    super(pool, serverId, name, kt, vt, new ConcurrentHashMap<K, V>());
   }
 }

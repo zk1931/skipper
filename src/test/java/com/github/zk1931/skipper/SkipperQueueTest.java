@@ -19,6 +19,11 @@
 package com.github.zk1931.skipper;
 
 import java.io.File;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -116,6 +121,101 @@ public class SkipperQueueTest extends TestBase {
     Assert.assertEquals("test3", queue2.remove());
     Assert.assertEquals("test4", queue2.remove());
 
+    sk1.shutdown();
+    sk2.shutdown();
+  }
+
+  @Test
+  public void testTake() throws Exception {
+    String server1 = getUniqueHostPort();
+    String server2 = getUniqueHostPort();
+
+    // Creates the two Skippers.
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
+    Skipper sk2 = new Skipper(server2, server1, getDir(server2));
+
+    // Creates queue1.
+    final SkipperQueue<String> queue1 =
+      sk1.getQueue("m1", String.class);
+
+    // Creates queue2.
+    final SkipperQueue<String> queue2 =
+      sk2.getQueue("m1", String.class);
+
+    queue1.add("test1");
+    // Make sure we can get it if there're something in queue.
+    Assert.assertEquals("test1", queue1.take());
+
+    ScheduledExecutorService es = Executors.newSingleThreadScheduledExecutor();
+
+    // Append "test2" one second later in another thread.
+    es.schedule(new Runnable() { public void run() { queue1.add("test2"); }},
+                (long)1, TimeUnit.SECONDS);
+    // Make sure we can get it.
+    Assert.assertEquals("test2", queue1.take());
+
+    // Append "test3" one second later in another thread.
+    es.schedule(new Runnable() { public void run() { queue1.add("test3"); }},
+                (long)1, TimeUnit.SECONDS);
+    // Make sure we can get it from queue2.
+    Assert.assertEquals("test3", queue2.take());
+
+    sk1.shutdown();
+    sk2.shutdown();
+  }
+
+  @Test(timeout=5000)
+  public void testConcurrentTake() throws Exception {
+    // Two consumers consume the queue concurrently, one producer produces.
+    String server1 = getUniqueHostPort();
+    String server2 = getUniqueHostPort();
+
+    // Creates the two Skippers.
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
+    Skipper sk2 = new Skipper(server2, server1, getDir(server2));
+
+    // Creates queue1.
+    final SkipperQueue<String> queue1 =
+      sk1.getQueue("m1", String.class);
+
+    // Creates queue2.
+    final SkipperQueue<String> queue2 =
+      sk2.getQueue("m1", String.class);
+
+    final CountDownLatch count = new CountDownLatch(10);
+
+    ExecutorService es1 = Executors.newSingleThreadExecutor();
+    ExecutorService es2 = Executors.newSingleThreadExecutor();
+
+    class Consumer implements Runnable {
+      final SkipperQueue<String> queue;
+
+      Consumer(SkipperQueue<String> queue) {
+        this.queue = queue;
+      }
+
+      @Override
+      public void run() {
+        while (true) {
+          try {
+            String item = queue.take();
+            LOG.info("GOT {} from {}", item, queue);
+            count.countDown();
+          } catch (InterruptedException ex) {
+            throw new RuntimeException(ex);
+          }
+        }
+      }
+    }
+
+    es1.submit(new Consumer(queue1));
+    es2.submit(new Consumer(queue2));
+
+    for (int i = 0; i < 10; ++i) {
+      queue1.add("item" + i);
+    }
+
+    count.await();
     sk1.shutdown();
     sk2.shutdown();
   }

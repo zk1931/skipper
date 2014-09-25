@@ -37,8 +37,6 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
 
   private final ConcurrentMap<K, V> map;
 
-  private final String name;
-
   /**
    * The type of the key.
    */
@@ -52,10 +50,9 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
   private static final Logger LOG =
       LoggerFactory.getLogger(SkipperMap.class);
 
-  SkipperMap(String name, CommandPool pool, Class<K> kt, Class<V> vt,
-             ConcurrentMap<K, V> map) {
-    super(pool);
-    this.name = name;
+  SkipperMap(CommandPool pool, String name, String serverId, Class<K> kt,
+             Class<V> vt, ConcurrentMap<K, V> map) {
+    super(pool, name, serverId);
     this.keyType = kt;
     this.valueType = vt;
     this.map = map;
@@ -400,7 +397,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       return ((SkipperMap)module).map.put(this.key, this.value);
     }
   }
@@ -418,7 +415,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       return ((SkipperMap)module).map.remove(this.key);
     }
   }
@@ -434,7 +431,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       ((SkipperMap)module).map.clear();
       return null;
     }
@@ -455,7 +452,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       return ((SkipperMap)module).map.putIfAbsent(this.key, this.value);
     }
   }
@@ -473,7 +470,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       ((SkipperMap)module).map.putAll(this.map);
       return null;
     }
@@ -494,7 +491,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       return ((SkipperMap)module).map.remove(this.key, this.value);
     }
   }
@@ -511,7 +508,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       return ((SkipperMap)module).map.replace(this.key, this.value);
     }
   }
@@ -533,7 +530,7 @@ public class SkipperMap<K extends Serializable, V extends Serializable>
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       return ((SkipperMap)module).map.replace(this.key,
                                               this.oldValue,
                                               this.newValue);

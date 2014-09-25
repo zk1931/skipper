@@ -27,8 +27,20 @@ public abstract class SkipperModule {
 
   protected final CommandPool commandsPool;
 
-  SkipperModule(CommandPool pool) {
+  /**
+   * The name of the module.
+   */
+  protected final String name;
+
+  /**
+   * The server id of the process.
+   */
+  protected final String serverId;
+
+  SkipperModule(CommandPool pool, String name, String serverId) {
     this.commandsPool = pool;
+    this.name = name;
+    this.serverId = serverId;
   }
 
   abstract ByteBuffer preprocess(ByteBuffer request);

@@ -18,11 +18,14 @@
 
 package com.github.zk1931.skipper;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.NoSuchElementException;
+import java.util.Queue;
 import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,18 +41,17 @@ public class SkipperQueue<E extends Serializable> extends SkipperModule {
   // idempotent transactions.
   // TODO : Everytime after Jzab comes back from recovery, we should reset this
   // map.
-  final TreeMap<Long, E> preAppliedMap = new TreeMap<>();
+  private final TreeMap<Long, E> preAppliedMap = new TreeMap<>();
 
-  private final String name;
+  private final Queue<TakeCommand> pendingTakes = new LinkedList<TakeCommand>();
 
   private static final Logger LOG =
       LoggerFactory.getLogger(SkipperQueue.class);
 
   final Class<E> elemType;
 
-  SkipperQueue(String name, CommandPool pool, Class<E> et) {
-    super(pool);
-    this.name = name;
+  SkipperQueue(CommandPool pool, String name, String serverId, Class<E> et) {
+    super(pool, name, serverId);
     this.elemType = et;
   }
 
@@ -167,20 +169,43 @@ public class SkipperQueue<E extends Serializable> extends SkipperModule {
     return this.map.isEmpty();
   }
 
+  /**
+   * Retrieves and removes the head of this queue, waiting if necessary until
+   * an element becomes available.
+   *
+   * @return the first element of the queue.
+   */
+  public E take() throws InterruptedException {
+    try {
+      TakeCommand take = new TakeCommand(this.name, this.serverId);
+      return (E)commandsPool.enqueueCommand(take).get();
+    } catch (SkipperException ex) {
+      throw new RuntimeException(ex);
+    }
+  }
+
   @Override
   ByteBuffer preprocess(ByteBuffer request) {
     try {
       Command cmd = Serializer.deserialize(request);
       if (cmd instanceof AddCommand) {
-        long id = 0;
-        // Finds out the largest id in current pre-applied map.
-        for (long i : preAppliedMap.keySet()) {
-          id = i;
+        AddCommand add = (AddCommand)cmd;
+        if (!this.pendingTakes.isEmpty()) {
+          // If there're someone who are blocking on take, converts this command
+          // to TakeWithCommand and send out.
+          cmd = new TakeWithCommand(add.getSource(), pendingTakes.remove(),
+                                    add.getItem(), add.getId());
+        } else {
+          long id = 0;
+          // Finds out the largest id in current pre-applied map.
+          for (long i : preAppliedMap.keySet()) {
+            id = i;
+          }
+          id += 1;
+          add.setKey(id);
+          // Pre-applies this command.
+          preAppliedMap.put(id, (E)add.getItem());
         }
-        id += 1;
-        ((AddCommand)cmd).setKey(id);
-        // Pre-applies this command.
-        preAppliedMap.put(id, (E)((AddCommand)cmd).getItem());
       } else if (cmd instanceof RemoveCommand) {
         Iterator<Long> iter = preAppliedMap.keySet().iterator();
         RemoveCommand remove = (RemoveCommand)cmd;
@@ -195,9 +220,24 @@ public class SkipperQueue<E extends Serializable> extends SkipperModule {
       } else if (cmd instanceof ClearCommand) {
         // Pre-applies this command.
         preAppliedMap.clear();
+      } else if (cmd instanceof TakeCommand) {
+        TakeCommand take = (TakeCommand)cmd;
+        Iterator<Long> iter = preAppliedMap.keySet().iterator();
+        if (!iter.hasNext()) {
+          // If there's nothing in the SkipperQueue, turn this into a
+          // NullCommand. Also adds the command to pendingTakes queue.
+          this.pendingTakes.add(take);
+          cmd = new NullCommand(this.name);
+        } else {
+          //  If there're something in SkipperQueue, then just take it.
+          Long id = iter.next();
+          take.setKey(id);
+          // Pre-applied this command.
+          preAppliedMap.remove(id);
+        }
       }
       return Serializer.serialize(cmd);
-    } catch (Exception ex) {
+    } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -234,7 +274,7 @@ public class SkipperQueue<E extends Serializable> extends SkipperModule {
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       ((SkipperQueue)module).map.put(key, item);
       return null;
     }
@@ -256,7 +296,7 @@ public class SkipperQueue<E extends Serializable> extends SkipperModule {
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       SkipperQueue queue = (SkipperQueue)module;
       if (key == -1) {
         return new SkipperException.NoSuchElementException();
@@ -276,9 +316,86 @@ public class SkipperQueue<E extends Serializable> extends SkipperModule {
     }
 
     @Override
-    Object execute(SkipperModule module) {
+    Object execute(SkipperModule module, String clientId) {
       SkipperQueue queue = (SkipperQueue)module;
       queue.map.clear();
+      return null;
+    }
+  }
+
+  static class TakeCommand extends QueueCommand {
+    private static final long serialVersionUID = 0L;
+    private Long key = (long)-1;
+    private String serverId;
+
+    TakeCommand(String source, String serverId) {
+      super(source);
+      this.serverId = serverId;
+    }
+
+    void setKey(Long id) {
+      this.key = id;
+    }
+
+    String getServerId() {
+      return this.serverId;
+    }
+
+    @Override
+    Object execute(SkipperModule module, String clientId) {
+      SkipperQueue queue = (SkipperQueue)module;
+      if (queue.isEmpty()) {
+        throw new RuntimeException("The queue is empty for take command, bug?");
+      }
+      return queue.map.remove(this.key);
+    }
+  }
+
+  static class NullCommand extends QueueCommand {
+    private static final long serialVersionUID = 0L;
+
+    NullCommand(String source) {
+      super(source);
+      setId(-1);
+    }
+
+    @Override
+    Object execute(SkipperModule module, String clientId) {
+      // Does nothing.
+      return null;
+    }
+  }
+
+  /**
+   * The command which unblocks the take call.
+   */
+  static class TakeWithCommand extends QueueCommand {
+    private static final long serialVersionUID = 0L;
+    private final TakeCommand take;
+    private Object item;
+
+    TakeWithCommand(String source, TakeCommand take, Object item, long id) {
+      super(source);
+      this.take = take;
+      this.item = item;
+      setId(id);
+    }
+
+    // For TakeWithCommand, the clientId will be the id of who issued
+    // the Add command instead of the TakeCommand. So we should record the
+    // id of who issued the take command in TakeCommand to figure out whether
+    // we should wakeup the future.
+    @Override
+    Object execute(SkipperModule module, String clientId) {
+      if (clientId == null) {
+        // Ignores the command which is executed in synchronizing phase.
+        return null;
+      }
+      if (module.serverId.equals(take.getServerId())) {
+        // Wakes up the future object.
+        module.commandsPool.commandExecuted(take.getId(),
+                                            this.item, null);
+      }
       return null;
     }
   }

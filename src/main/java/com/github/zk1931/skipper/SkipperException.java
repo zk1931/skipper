@@ -33,7 +33,7 @@ public abstract class SkipperException extends Exception {
   public static class WrongTypeMap extends SkipperException {}
 
   /**
-   * NosuchElement exception.
+   * NoSuchElement exception.
    */
   public static class NoSuchElementException extends SkipperException {}
 }
