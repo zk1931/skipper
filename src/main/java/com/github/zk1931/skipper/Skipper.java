@@ -51,20 +51,26 @@ public class Skipper {
 
   private final SkipperContext skipperCtx;
 
+  private final StateChangeCallback stateChangeCallback;
+
   /**
    * Constructs Skipper object by joining a Skipper server.
    *
    * @param serverId the server address of this server.
    * @param joinPeer the server address you want to join in.
    * @param logDir the log directory for Skipper.
+   * @param stateChangeCallback the callback that notifies user the changes of
+   * cluster membership.
    * @throws InterruptedException in case of interruption.
    */
-  public Skipper(String serverId, String joinPeer, File logdir)
+  public Skipper(String serverId, String joinPeer, File logdir,
+                 StateChangeCallback stateChangeCallback)
       throws InterruptedException {
     Properties prop = new Properties();
     prop.setProperty("logdir", logdir.getPath());
     prop.setProperty("serverId", serverId);
     this.stateMachine = new SkipperStateMachine();
+    this.stateChangeCallback = stateChangeCallback;
     this.zab = new QuorumZab(this.stateMachine, prop, joinPeer);
     this.commandsPool= new CommandPool(this.zab);
     this.serverId = this.zab.getServerId();
@@ -77,12 +83,16 @@ public class Skipper {
    * Constructs Skipper object by recovering from a log directory.
    *
    * @param logDir the log directory for Skipper.
+   * @param stateChangeCallback the callback that notifies user the changes of
+   * cluster membership.
    * @throws InterruptedException in case of interruption.
    */
-  public Skipper(File logdir) throws InterruptedException {
+  public Skipper(File logdir, StateChangeCallback stateChangeCallback)
+      throws InterruptedException {
     Properties prop = new Properties();
     prop.setProperty("logdir", logdir.getPath());
     this.stateMachine = new SkipperStateMachine();
+    this.stateChangeCallback = stateChangeCallback;
     this.zab = new QuorumZab(this.stateMachine, prop);
     this.commandsPool= new CommandPool(this.zab);
     this.serverId = this.zab.getServerId();
@@ -206,6 +216,9 @@ public class Skipper {
       LOG.info("Leading : ");
       LOG.info("- Active followers : {}", setToString(activeFollowers));
       LOG.info("- Cluster members: {}", setToString(clusterMembers));
+      if (stateChangeCallback != null) {
+        stateChangeCallback.leading(activeFollowers, clusterMembers);
+      }
       broadcasting.countDown();
     }
 
@@ -213,6 +226,9 @@ public class Skipper {
     public void following(String leader, Set<String> clusterMembers) {
       LOG.info("Following {} : ", leader);
       LOG.info("- Cluster members: {}", setToString(clusterMembers));
+      if (stateChangeCallback != null) {
+        stateChangeCallback.following(leader, clusterMembers);
+      }
       broadcasting.countDown();
     }
   }

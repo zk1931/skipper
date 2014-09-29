@@ -21,6 +21,7 @@ package com.github.zk1931.skipper;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -44,8 +45,8 @@ public class SkipperHashMapTest extends TestBase {
     String server2 = getUniqueHostPort();
 
     // Creats two Skippers.
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
-    Skipper sk2 = new Skipper(server2, server1, getDir(server2));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
+    Skipper sk2 = new Skipper(server2, server1, getDir(server2), null);
 
     // Gets one SkipperHashMap from each context with the same name.
     SkipperHashMap<String, String> map1 =
@@ -78,7 +79,7 @@ public class SkipperHashMapTest extends TestBase {
   @Test
   public void testPut() throws Exception {
     String server1 = getUniqueHostPort();
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
     SkipperHashMap<String, String> map1 =
       sk1.getHashMap("m1", String.class, String.class);
     map1.putAsync("key1", "value1");
@@ -91,7 +92,7 @@ public class SkipperHashMapTest extends TestBase {
   @Test
   public void testRemove() throws Exception {
     String server1 = getUniqueHostPort();
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
     SkipperHashMap<String, String> map1 =
       sk1.getHashMap("m1", String.class, String.class);
     map1.putAsync("key1", "value1");
@@ -109,8 +110,8 @@ public class SkipperHashMapTest extends TestBase {
     String server2 = getUniqueHostPort();
 
     // Creats two Skippers.
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
-    Skipper sk2 = new Skipper(server2, server1, getDir(server2));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
+    Skipper sk2 = new Skipper(server2, server1, getDir(server2), null);
 
     // Gets one SkipperHashMap from each context with the same name.
     SkipperHashMap<String, String> map1 =
@@ -131,8 +132,8 @@ public class SkipperHashMapTest extends TestBase {
     String server2 = getUniqueHostPort();
 
     // Creats two Skippers.
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
-    Skipper sk2 = new Skipper(server2, server1, getDir(server2));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
+    Skipper sk2 = new Skipper(server2, server1, getDir(server2), null);
 
     // Gets one SkipperHashMap from each context with the same name.
     SkipperHashMap<String, String> map1 =
@@ -170,8 +171,8 @@ public class SkipperHashMapTest extends TestBase {
     String server2 = getUniqueHostPort();
 
     // Creats two Skippers.
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
-    Skipper sk2 = new Skipper(server2, server1, getDir(server2));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
+    Skipper sk2 = new Skipper(server2, server1, getDir(server2), null);
 
     // Gets one SkipperHashMap from each context with the same name.
     SkipperHashMap<String, String> map1 =
@@ -204,7 +205,7 @@ public class SkipperHashMapTest extends TestBase {
   @Test
   public void testPutAll() throws Exception {
     String server1 = getUniqueHostPort();
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
     SkipperHashMap<String, String> map1 =
       sk1.getHashMap("m1", String.class, String.class);
     Map<String, String> hm = new HashMap<String, String>();
@@ -220,7 +221,7 @@ public class SkipperHashMapTest extends TestBase {
   @Test
   public void testRemoveIf() throws Exception {
     String server1 = getUniqueHostPort();
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
     SkipperHashMap<String, String> map1 =
       sk1.getHashMap("m1", String.class, String.class);
     map1.put("key1", "value1");
@@ -238,7 +239,7 @@ public class SkipperHashMapTest extends TestBase {
   @Test
   public void testReplace() throws Exception {
     String server1 = getUniqueHostPort();
-    Skipper sk1 = new Skipper(server1, server1, getDir(server1));
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
     SkipperHashMap<String, String> map1 =
       sk1.getHashMap("m1", String.class, String.class);
     // Replace key-value pair key1 with value1.
@@ -261,5 +262,45 @@ public class SkipperHashMapTest extends TestBase {
     // Should be replaced.
     Assert.assertEquals("value3", map1.get("key1"));
     sk1.shutdown();
+  }
+
+  @Test
+  public void testStateChangeCallback() throws Exception {
+    String server1 = getUniqueHostPort();
+    String server2 = getUniqueHostPort();
+    String server3 = getUniqueHostPort();
+
+    class TestChangeCallback implements StateChangeCallback {
+      volatile String leader;
+      volatile Set<String> activeFollowers;
+      volatile Set<String> clusterMembers;
+
+      @Override
+      public void leading(Set<String> actives,
+                          Set<String> members) {
+        this.activeFollowers = actives;
+        this.clusterMembers = members;
+      }
+
+      @Override
+      public void following(String ld, Set<String> members) {
+        this.leader = ld;
+        this.clusterMembers = members;
+      }
+    }
+
+    TestChangeCallback testCallback = new TestChangeCallback();
+
+    Skipper sk1 = new Skipper(server1, server1, getDir(server1), null);
+    Skipper sk2 = new Skipper(server2, server1, getDir(server2), null);
+    Skipper sk3 = new Skipper(server3, server1, getDir(server3), testCallback);
+
+    Assert.assertTrue(server1.equals(testCallback.leader) ||
+                      server2.equals(testCallback.leader));
+    Assert.assertEquals(3, testCallback.clusterMembers.size());
+
+    sk1.shutdown();
+    sk2.shutdown();
+    sk3.shutdown();
   }
 }
