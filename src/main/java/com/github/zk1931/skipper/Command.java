@@ -54,5 +54,13 @@ public abstract class Command implements Serializable {
     this.id = cid;
   }
 
-  abstract Object execute(SkipperModule module) throws SkipperException;
+  /**
+   * Callback which will be called when command gets delivered.
+   *
+   * @param module the module who should apply this command.
+   * @param clientId the id of server who issued this command, if this command
+   * is executed in recovering phase, serverId will be null.
+   */
+  abstract Object execute(SkipperModule module, String clientId)
+      throws SkipperException;
 }

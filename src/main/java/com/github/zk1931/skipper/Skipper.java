@@ -68,7 +68,7 @@ public class Skipper {
     this.zab = new QuorumZab(this.stateMachine, prop, joinPeer);
     this.commandsPool= new CommandPool(this.zab);
     this.serverId = this.zab.getServerId();
-    this.skipperCtx = new SkipperContext(this.commandsPool, serverId);
+    this.skipperCtx = new SkipperContext(this.commandsPool, "ctx", serverId);
     // Waits Jzab enters broadcasting phase.
     this.broadcasting.await();
   }
@@ -86,7 +86,7 @@ public class Skipper {
     this.zab = new QuorumZab(this.stateMachine, prop);
     this.commandsPool= new CommandPool(this.zab);
     this.serverId = this.zab.getServerId();
-    this.skipperCtx = new SkipperContext(this.commandsPool, serverId);
+    this.skipperCtx = new SkipperContext(this.commandsPool, "ctx", serverId);
     // Waits Jzab enters broadcasting phase.
     this.broadcasting.await();
   }
@@ -124,7 +124,11 @@ public class Skipper {
    * @param name the name of the SkipperQueue object.
    * @return the SkipperQueue object.
    */
-  public SkipperQueue getQueue(String name) { return null; }
+  public <E extends Serializable> SkipperQueue<E>
+  getQueue(String name, Class<E> et)
+      throws InterruptedException, SkipperException {
+    return skipperCtx.getQueue(name, et);
+  }
 
   /**
    * StateMachine of Skipper.
@@ -146,6 +150,8 @@ public class Skipper {
         return skipperCtx.maps.get(cmd.getSource());
       } else if (cmd instanceof SkipperContext.KeeperCommand) {
         return skipperCtx;
+      } else if (cmd instanceof SkipperQueue.QueueCommand) {
+        return skipperCtx.queues.get(cmd.getSource());
       }
       return null;
     }
@@ -168,7 +174,7 @@ public class Skipper {
       Object result = null;
       SkipperException exception = null;
       try {
-        result = cmd.execute(md);
+        result = cmd.execute(md, clientId);
       } catch (SkipperException ex) {
         LOG.warn("Caught exception while executing command!");
         exception = ex;

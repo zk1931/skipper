@@ -79,7 +79,7 @@ public class CommandPool {
     // Remove the corresponding future of this command.
     SkipperFuture ft = pendingFutures.remove(cid);
     if (ft == null) {
-      throw new RuntimeException("No pending future for command, bug?");
+      return;
     }
     // Set the exception.
     ft.setException(ex);

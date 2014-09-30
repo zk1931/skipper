@@ -31,4 +31,9 @@ public abstract class SkipperException extends Exception {
    * The type of map is wrong.
    */
   public static class WrongTypeMap extends SkipperException {}
+
+  /**
+   * NoSuchElement exception.
+   */
+  public static class NoSuchElementException extends SkipperException {}
 }
